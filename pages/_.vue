@@ -17,11 +17,11 @@
             clearable
             return-object
           )
-        v-container(class="red lighten-5" fluid v-if="searchModel.error")
+        v-container(class="red lighten-5" fluid v-if="searchModel.error || state.error")
           v-row
             v-col(
               cols="12"
-            ) {{ searchModel.error }}
+            ) {{ searchModel.error || state.error }}
 
         v-container(class="grey lighten-5" fluid v-if="state.coordinates")
           v-row
@@ -33,37 +33,29 @@
               div(id="map-wrap" style="height: 80vh; z-index: 0; position: relative;")
                 client-only
                   //- TODO: make zoom dynamic. Calculate the bounding box for all markers
-                  l-map(:zoom=13 :center="[state.coordinates.lat,state.coordinates.lng]")
+                  l-map(:zoom=7 :center="[state.coordinates.lat,state.coordinates.lng]")
                     l-tile-layer( url="http://{s}.tile.osm.org/{z}/{x}/{y}.png")
-                    l-marker(:lat-lng="[55.9464418,8.1277591]")
-                    l-marker(:lat-lng="[55.95,8.13]")
-                    l-marker(:lat-lng="[55.93,8.11]")
+                    l-marker(
+                      v-for="(item, index) in state.searchResults"
+                      :name="item.name"
+                      :key="`${item.lat},${item.lng}`"
+                      :lat-lng="[item.lat,item.lng]"
+                    )
 
             v-col(
               cols="12"
               sm="4"
             )
               v-expansion-panels
-                v-expansion-panel()
-                  v-expansion-panel-header Main City
+                v-expansion-panel(v-for="(item, index) in state.searchResults" :key="`${item.lat},${item.lng}`")
+                  v-expansion-panel-header {{ item.stationName }}
                   v-expansion-panel-content
-                    | name, current temp, population, distance
-                v-expansion-panel
-                  v-expansion-panel-header Closest City 1
-                  v-expansion-panel-content
-                    | Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-                v-expansion-panel
-                  v-expansion-panel-header Closest City 2
-                  v-expansion-panel-content
-                    | Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-                v-expansion-panel
-                  v-expansion-panel-header Closest City 3
-                  v-expansion-panel-content
-                    | Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-                v-expansion-panel
-                  v-expansion-panel-header Closest City 4
-                  v-expansion-panel-content
-                    | Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+                    div(v-if="index !== 0")
+                      strong Distance: &nbsp;
+                      | {{ item.distance | readableInt }} Km
+                    div
+                      strong Temperature (C): &nbsp;
+                      | {{ item.temperature }}
 
         v-container(class="grey lighten-5" fluid v-else)
           v-row
@@ -113,17 +105,15 @@ const getCoordinates = (path: string) => {
   }
 }
 
-const asyncData = (context: Context) => {
+const asyncData = async (context: Context) => {
   const path = context.params.pathMatch
   const coordinates = getCoordinates(path)
   const isHomePage = !path || path === context.base
 
   const state = {
-    state: {
-      coordinates,
-      searchResults: [],
-      error: ''
-    }
+    coordinates,
+    searchResults: [],
+    error: ''
   }
 
   if (!isHomePage && !coordinates) {
@@ -131,11 +121,24 @@ const asyncData = (context: Context) => {
   }
 
   if (isHomePage) {
-    return state
+    return { state }
   }
 
-  // TODO get data for coordinates
-  return state
+  try {
+    return {
+      state: {
+        ...state,
+        searchResults: await geoApi.findNearestCities(coordinates!.lat, coordinates!.lng)
+      }
+    }
+  } catch (_) {
+    return {
+      state: {
+        ...state,
+        error: 'Unable to get nearby cities'
+      }
+    }
+  }
 }
 
 type State = Unpacked<Unpacked<typeof asyncData>>['state'];
@@ -168,6 +171,7 @@ export default class extends Vue {
           text: `(${item.countryCode}) ${item.toponymName}`,
           value: { lat: item.lat, lng: item.lng }
         }))
+        this.searchModel.error = ''
       })
       .catch(() => {
         this.searchModel.error = 'Unable to search location by name'
@@ -184,12 +188,21 @@ export default class extends Vue {
   }
 
   @Watch('searchModel.selected')
-  searchSelectedHandler (e: SearchSelected) {
+  async searchSelectedHandler (e: SearchSelected) {
     const coordinates = e.value
 
-    this.state = {
-      ...this.state,
-      coordinates
+    try {
+      this.state = {
+        ...this.state,
+        coordinates,
+        error: '',
+        searchResults: await geoApi.findNearestCities(coordinates.lat, coordinates.lng)
+      }
+    } catch (_) {
+      this.state = {
+        ...this.state,
+        error: 'Unable to get nearby cities'
+      }
     }
 
     // TODO: replaceState in url => /location/:lat/:lng

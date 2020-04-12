@@ -2,7 +2,7 @@
 
 > Map project
 
-Demo: https://vue-demo-relvao.herokuapp.com/
+Demo: http://vue-demo-relvao.herokuapp.com/
 ## Build Setup
 
 ``` bash

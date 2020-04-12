@@ -28,7 +28,8 @@
         "@types/node",
         "@nuxt/types",
         "node_modules/path-to-regexp/dist/index.d.ts",
-        "nuxt-leaflet"
+        "nuxt-leaflet",
+        "@types/debounce"
       ]
     },
     "exclude": [

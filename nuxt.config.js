@@ -1,6 +1,8 @@
 export default {
   mode: 'universal',
-  env: { },
+  env: {
+    apiUsername: process.env.API_USERNAME || 'relvao'
+  },
   router: {
     base: '/'
   },
